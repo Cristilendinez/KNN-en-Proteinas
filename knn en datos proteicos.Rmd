@@ -1,0 +1,563 @@
+---
+title: "Predicción de la estructura secundaria de proteínas globulares"
+author: "Cristina Lendinez"
+date: "8/4/2021"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: yes
+  html_document:
+    toc: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+nocite: |
+  @lantz2015machine
+link-citations: yes
+lang: es
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Ingreso las librerias que voy a usar
+
+```{r load_libraries, include=FALSE}
+library(knitr)
+library(class)
+library(gmodels)
+library(tidyverse)
+library(dummies)
+library(lattice)
+library(ggplot2)
+library(data.table)
+library(mltools)
+library(purrr)
+```
+
+\pagebreak
+# Algoritmo K-NN
+
+El algoritmo K-NN utiliza la informacion de los vecinos mas cercanos para etiquetar o clasificar individuos que no tengan etiqueta o clasificación. Para ello utilizaremos un conjunto de datos para "entrenamiento" y clasificara otro conjunto de individuos que no esten clasificados. El algoritmo identificara k individuos del conjunto de datos de entrenamiento que tengan mas similitud con cada individuo a etiquetar y se asignara su clasificación. El valor k es un valor especificado de antemano. 
+
+| **Fortalezas**    | **Debilidades**  | 
+| ------------------------ |:------------------------------------------------------- |
+|*Simple y efectivo   |*No produce un modelo, lo que limita la capacidad de encontrar conocimientos en las relaciones entre las caracteristicas |
+|*No hace suposiciones sobre la distribución de datos subyacentes |*Fase de clasificación lenta |
+|*Fase de entrenamiento rápida |*Requiere una gran cantidad de memoria |
+|   |* Caracteristicas nominales y la falta de datos requiere un procesamiento adicional |
+
+# Step 1: Recolección de los datos
+ 
+
+# 2.Desarrollar una función en R que implemente una codificación "one-hot" (one-hot encoding) de las secuencias.
+ 
+Se descargan los datos de la PEC desde la pagina de la UOC o del dataset "“” . Tenemos 2  archivos que estan  en formato csv y tiene como separador ",". Son 2 csv, uno de ellos lo usaremos para crear la funcion  **one-hot**, y si no conseguiimos crear la funcion **one-hot**, tenemos el archivo **oh_enc** cedido por el profesor, para que podamos continuar con el análisis.
+Vamos a importar el primer csv, llamado ***data4***
+Cargo el primer csv llamado data4.csv
+```{r}
+datos <- read.csv("C:\\Users\\crist\\OneDrive\\Desktop\\machine learning\\Pec 1 Cris\\data4 .csv", header= T, sep=";",stringsAsFactors = T)
+```
+
+Tengo que eliminar la columna V18, para poder crear mi variable de **one-hot**
+
+```{r}
+datos2 <- datos[-18]
+```
+
+Confirmo que he eliminado la columna V18
+
+```{r}
+str(datos2)
+#Con la uncion str, acabo de confirmar que he eliminado la columna V18, 
+```
+
+
+
+Seguidamente con la funcion dummy podre crear mi función **one-hot**, y tambien con la funcion one-hot, lo hago de las 2 formas para confirmar que funciona correctamente
+
+```{r   warning = FALSE}
+data.dummy <- dummy.data.frame(datos2, sep=".")
+head(data.dummy)
+```
+
+```{r}
+datos$V18<-factor(datos$V18,levels=c("h","e","_"),
+labels=c("a_helix","b_sheet","coil"))
+```
+
+
+
+Ahora pruebo con la funcion ***one_hote***
+
+```{r}
+One_hot_data = one_hot(as.data.table(datos2))
+##Puedo observar que las 2 funciones funcionan perfectamente, como hay varias formas de hacer el ejercicio yo encontre esta
+```
+
+# 3. Desarrollar un script en R que implemente un clasificador knn. El script debe realizar los siguientes apartados:
+
+## (a) Leer el fichero data4.csv. Cada registro contiene una secuencia de 17 aminoácidos y la clase de estructura secundaria correspondiente al aminoácido central (posición 9), donde los caracteres ‘h‘, ‘e‘ y ‘_‘ representan -helix, -sheet y coil, respectivamente. Después de cargar los datos, crear una tabla donde se muestre el número de secuencias de cada clase.
+
+Vuelvo a importar el csv data4.csv, ya que al crear la funcion con dummy y one hot he podido comprobar que funciona y las variables se transofrman en 1 y 0 según donde cae el aminoacido
+
+```{r}
+datos <- read.csv("C:\\Users\\crist\\OneDrive\\Desktop\\machine learning\\Pec 1 Cris\\data4 .csv", header= T, sep=";",stringsAsFactors = T)
+```
+
+Haggo la tabla donde los caracterea sean -helis, -sheet, -coil, lo hare de dos formasm una centrandome en la posicion 9 y otra sin centrarme en ellos
+
+```{r}
+datos$V18<-factor(datos$V18,levels=c("h","e","_"),
+labels=c("a_helix","b_sheet","coil"))
+table(factor(datos$V18), factor(datos$V9))
+##Como podemos ver he creado una tabla en la que me encuentro los 17 aminoacidos  en su estructura secundaria
+##hare otra tabla diferente tambien
+```
+
+Ahora hago la tabla sin centrarme en la columna V9
+
+```{r}
+table(datos$V18)
+```
+
+Lo que puedo observar, es que tenemos 5557 que son coil, 1935 que son sheet, y 2508 que son helix.
+
+
+##(b) Utilizar la función de codificación "one-hot" para representar las secuencias 
+NOTA: En casode no poder hacer la función, se puede descargar el fichero oh_enc.csv con las secuencias ya transformados
+
+```{r  warning = FALSE}
+##quito la columna V18 para poder codificar lo datos
+datos2 <- datos[-18]
+data.dummy <- dummy.data.frame(datos2, sep=".")
+One_hot_data = one_hot(as.data.table(datos2))
+##Al tener los datos codificados, ya puedo ponerme con el apartado 3, donde hare el training y el test con la semilla de aleatoridad
+
+```
+
+Creo la funcion One_hote_data, en todo momento estoy siguiendo el libro 
+
+```{r}
+One_hot_data_label<-cbind(One_hot_data,datos$V18)
+data.dummy.label <- cbind(data.dummy,datos$V18)
+```
+
+
+## (c) Utilizando la semilla aleatoria 123, separar los datos en dos partes, una parte para training (67%) y una parte para test (33%).
+
+Voy a eparar los datos de 2 formas con dummy y con one-hot, para seguir asegurandome que todo funciona correctamente.
+
+ Primero lo hago con la funcion One_hote_data_label
+```{r  warning = FALSE}
+library(purrr)
+library(caret)
+set.seed(123)
+ind <- sample(1:nrow(One_hot_data_label),round(2*nrow(One_hot_data_label)/3))
+training_one_hot <-One_hot_data_label[ind]
+test_one_hot <- One_hot_data_label[-ind,]
+```
+
+Compruebo en que he creado el training y el testing
+
+```{r}
+dim(training_one_hot)
+dim(test_one_hot)
+```
+
+Ahora hago lo mismo con la función dummy, ya que me gusta ver que podemos resolver ls PEC de varias formas
+
+```{r}
+library(caret)
+set.seed(123)
+ind <- sample(1:nrow(data.dummy.label),round(2*nrow(data.dummy.label)/3))
+training_dummy <-data.dummy.label[ind,]
+test_dummy <- data.dummy[-ind,]
+```
+
+Compruebo con la funcion dim que se dividio mi dummy en 67% de training y 33 % de test
+
+```{r}
+dim(training_dummy)
+dim(test_dummy)
+##Como puedo ver al ver la longitud de training y test con la funcion dummy veo que la funcion test tiene una columna menos  y puede darme problemas, asi que por ahora  continuo solo con la funcion one hot
+```
+
+
+## (d) Utilizar un knn (k = 1, 3, 5, 7, 11) basado en el training para predecir la estructura secundaria de las secuencias del test.
+
+Mientras estuve haciendo la Pec me encontre problemas con el vector que contienen las etiquetas,lo que tengo que hacer es pasarlo a factor, seguire haciendolo todo tanto en onehot como en dummy
+
+```{r}
+head(training_one_hot$V2)
+
+```
+
+
+
+
+Convierto a integer el vector de las etiquetas de one-hot
+
+```{r}
+training_one_hot$V2<-as.integer(training_one_hot$V2)
+head(training_one_hot$V2)
+```
+miro los 5 primeros valores de test_one_hot
+
+
+```{r}
+head(test_one_hot)
+```
+
+Paso el vector a integer, para no tener problemas al realizar los knn vecinos cercanos
+
+```{r}
+test_one_hot$V2<-as.integer(test_one_hot$V2)
+head(test_one_hot$V2)
+```
+```{r}
+table(training_one_hot$V2)
+```
+
+```{r}
+table(test_one_hot$V2)
+```
+
+## (d) Utilizar un knn (k = 1, 3, 5, 7, 11) basado en el training para predecir la estructura secundaria de las secuencias del test.
+
+
+Vamos a hacer los KNN los vecinos cercanos con los datos que hemos separado en el apartado anterior
+
+***K1***
+```{r}
+library(class)
+library(gmodels)
+predicion1<-knn(train=training_one_hot, test=test_one_hot,
+cl=training_one_hot$V2, k=1)
+k1<-CrossTable(x=test_one_hot$V2, y=predicion1,
+prop.chisq = FALSE)
+
+```
+Ahora hago el ***k3***
+
+```{r}
+
+predicion3<-knn(train=training_one_hot, test=test_one_hot,
+cl=training_one_hot$V2, k=3)
+k1<-CrossTable(x=test_one_hot$V2, y=predicion3,
+prop.chisq = FALSE)
+
+```
+***k5***
+
+```{r}
+predicion5<-knn(train=training_one_hot, test=test_one_hot,
+cl=training_one_hot$V2, k=5)
+k1<-CrossTable(x=test_one_hot$V2, y=predicion5,
+prop.chisq = FALSE)
+```
+
+***k7***
+
+```{r}
+predicion7<-knn(train=training_one_hot, test=test_one_hot,
+cl=training_one_hot$V2, k=7)
+k1<-CrossTable(x=test_one_hot$V2, y=predicion7,
+prop.chisq = FALSE)
+```
+***k11***
+
+```{r}
+predicion11<-knn(train=training_one_hot, test=test_one_hot,
+cl=training_one_hot$V2, k=11)
+k1<-CrossTable(x=test_one_hot$V2, y=predicion11,
+prop.chisq = FALSE)
+```
+##(e) Por otra parte, sabemos que las clases -helix y -sheet son del tipo non-coil. 
+Realizar otro knn (k = 1, 3, 5, 7, 11) para esta nueva clasificación, coil y non-coil. Además, realizar una curva ROC para cada k y calcular su área bajo la curva (AUC).
+
+**Haremos el mismo proceso que en apartado anterior, pero diferenciaremos entre las que no son coil
+
+```{r  warning = FALSE}
+library(car)
+training_one_hot$coil <- recode(training_one_hot$V2,"1:2=0; 3=1")
+test_one_hot$coil <- recode(test_one_hot$V2, "1:2=0; 3=1")
+table(training_one_hot$coil)
+table(test_one_hot$coil)
+```
+
+Vamos a realizar el knn para (1,3,5,7,11), pero lo haremos en los datos coil, el apartado será muy parecido al anterior, pero usaremos lo s datos coil
+
+
+```{r}
+library(class)
+library(gmodels)
+predicion_coil_1 <-knn(train=training_one_hot, test=test_one_hot,
+cl=training_one_hot$coil, k=1)
+predicion_coil_3 <-knn(train=training_one_hot, test=test_one_hot,
+cl=training_one_hot$coil, k=3)
+predicion_coil_5 <-knn(train=training_one_hot, test=test_one_hot,
+cl=training_one_hot$coil, k=5)
+predicion_coil_7 <-knn(train=training_one_hot, test=test_one_hot,
+cl=training_one_hot$coil, k=7)
+predicion_coil_11 <-knn(train=training_one_hot, test=test_one_hot,
+cl=training_one_hot$coil, k=11)
+```
+
+Tenemos que crear la curva ROC, y elAUC, para las 5 k que hemos realizado (k=1,3,5,7,11)
+
+```{r}
+library(ROCR)
+#K=1
+test_predicion_1<-knn(train=training_one_hot, test=test_one_hot,cl=training_one_hot$coil, k=1,prob=T)
+test_probabilidad_1<-attr(test_predicion_1,"prob")
+t_1_probabilidad<-ifelse(predicion_coil_1==1,test_probabilidad_1,1-test_probabilidad_1)
+test_1nc_probabilidad<-1-t_1_probabilidad
+resultados_coil_1<-data.frame(test_one_hot$coil,predicion_coil_1, t_1_probabilidad,test_1nc_probabilidad)
+head(resultados_coil_1)
+```
+
+```{r}
+library(ROCR)
+predicion.k1<-prediction(predictions= resultados_coil_1$t_1_probabilidad,labels=resultados_coil_1$test_one_hot.coil)#El primero debe contener los valores de clase pronosticados y el segundo debe contener la probabilidad estimada de la clase positiva.
+performance1k<-performance(predicion.k1,measure="tpr",x.measure="fpr")
+auc.performance1k<-performance(predicion.k1,measure="auc")
+auc.performance1k<-unlist(auc.performance1k@y.values)
+auc.performance1k
+plot(performance1k,avg="threshold",colorize=T,lwd=3,
+main=("Curva ROC  k=1, AUC = 0.9953124"))
+abline(a=0,b=1,lwd=1,lty=2)
+```
+
+Voy ahora con los otros 4 knn que me faltan.
+
+```{r}
+library(ROCR)
+#K=3
+test_predicion_3<-knn(train=training_one_hot, test=test_one_hot,cl=training_one_hot$coil, k=3,prob=T)
+test_probabilidad_3<-attr(test_predicion_3,"prob")
+t_3_probabilidad<-ifelse(predicion_coil_3==1,test_probabilidad_3,1-test_probabilidad_3)
+test_3nc_probabilidad<-1-t_3_probabilidad
+resultados_coil_3<-data.frame(test_one_hot$coil,predicion_coil_3, t_3_probabilidad,test_3nc_probabilidad)
+head(resultados_coil_3)
+```
+
+```{r}
+library(ROCR)
+predicion.k3<-prediction(predictions= resultados_coil_3$t_3_probabilidad,labels=resultados_coil_3$test_one_hot.coil)#El primero debe contener los valores de clase pronosticados y el segundo debe contener la probabilidad estimada de la clase positiva.
+performance3k<-performance(predicion.k3,measure="tpr",x.measure="fpr")
+auc.performance3k<-performance(predicion.k3,measure="auc")
+auc.performance3k<-unlist(auc.performance3k@y.values)
+auc.performance3k
+plot(performance3k,avg="threshold",colorize=T,lwd=3,
+main=("Curva ROC  k=3, AUC = 0.9828701"))
+abline(a=0,b=1,lwd=1,lty=2)
+```
+
+***k5***
+```{r}
+library(ROCR)
+#K=5
+test_predicion_5<-knn(train=training_one_hot, test=test_one_hot,cl=training_one_hot$coil, k=5,prob=T)
+test_probabilidad_5<-attr(test_predicion_5,"prob")
+t_5_probabilidad<-ifelse(predicion_coil_5==1,test_probabilidad_5,1-test_probabilidad_5)
+test_5nc_probabilidad<-1-t_5_probabilidad
+resultados_coil_5<-data.frame(test_one_hot$coil,predicion_coil_5, t_5_probabilidad,test_5nc_probabilidad)
+head(resultados_coil_5)
+```
+```{r}
+library(ROCR)
+predicion.k5<-prediction(predictions= resultados_coil_5$t_5_probabilidad,labels=resultados_coil_5$test_one_hot.coil)#El primero debe contener los valores de clase pronosticados y el segundo debe contener la probabilidad estimada de la clase positiva.
+performance5k<-performance(predicion.k5,measure="tpr",x.measure="fpr")
+auc.performance5k<-performance(predicion.k5,measure="auc")
+auc.performance5k<-unlist(auc.performance5k@y.values)
+auc.performance5k
+plot(performance5k,avg="threshold",colorize=T,lwd=3,
+main=("Curva ROC  k=5, AUC = 0.9982655"))
+abline(a=0,b=1,lwd=1,lty=2)
+```
+
+***k7***
+
+```{r}
+library(ROCR)
+#K=7
+test_predicion_7<-knn(train=training_one_hot, test=test_one_hot,cl=training_one_hot$coil, k=7,prob=T)
+test_probabilidad_7<-attr(test_predicion_7,"prob")
+t_7_probabilidad<-ifelse(predicion_coil_7==1,test_probabilidad_7,1-test_probabilidad_7)
+test_7nc_probabilidad<-1-t_7_probabilidad
+resultados_coil_7<-data.frame(test_one_hot$coil,predicion_coil_7, t_7_probabilidad,test_7nc_probabilidad)
+head(resultados_coil_7)
+```
+
+```{r}
+library(ROCR)
+predicion.k7<-prediction(predictions= resultados_coil_7$t_7_probabilidad,labels=resultados_coil_7$test_one_hot.coil)#El primero debe contener los valores de clase pronosticados y el segundo debe contener la probabilidad estimada de la clase positiva.
+performance7k<-performance(predicion.k7,measure="tpr",x.measure="fpr")
+auc.performance7k<-performance(predicion.k7,measure="auc")
+auc.performance7k<-unlist(auc.performance7k@y.values)
+auc.performance7k
+plot(performance7k,avg="threshold",colorize=T,lwd=3,
+main=("Curva ROC  k=7, AUC = 0.9987329"))
+abline(a=0,b=1,lwd=1,lty=2)
+```
+***k11***
+
+```{r}
+library(ROCR)
+#K=11
+test_predicion_11<-knn(train=training_one_hot, test=test_one_hot,cl=training_one_hot$coil, k=11,prob=T)
+test_probabilidad_11<-attr(test_predicion_11,"prob")
+t_11_probabilidad<-ifelse(predicion_coil_11==1,test_probabilidad_11,1-test_probabilidad_11)
+test_11nc_probabilidad<-1-t_11_probabilidad
+resultados_coil_11<-data.frame(test_one_hot$coil,predicion_coil_11, t_11_probabilidad,test_11nc_probabilidad)
+head(resultados_coil_11)
+```
+
+```{r}
+library(ROCR)
+predicion.k11<-prediction(predictions= resultados_coil_11$t_11_probabilidad,labels=resultados_coil_11$test_one_hot.coil)#El primero debe contener los valores de clase pronosticados y el segundo debe contener la probabilidad estimada de la clase positiva.
+performance11k<-performance(predicion.k11,measure="tpr",x.measure="fpr")
+auc.performance11k<-performance(predicion.k11,measure="auc")
+auc.performance11k<-unlist(auc.performance11k@y.values)
+auc.performance11k
+plot(performance11k,avg="threshold",colorize=T,lwd=3,
+main=("Curva ROC  k=11, AUC = 0.9997547"))
+abline(a=0,b=1,lwd=1,lty=2)
+```
+
+##(f) Comentar los resultados de la clasificación para las tres clases de estructuras secundarias
+basado,como mínimo, en el error de clasificación y el valor de kappa. Además, comentar los resultados para las clases coil y non-coil en función del AUC, número de falsos positivos, falsos negativos y
+error de clasificación obtenidos para los diferentes valores de k.
+
+```{r}
+library(caret)
+Matriz_1<-CrossTable(x=test_one_hot$V2, y=predicion1,
+prop.chisq = FALSE)
+
+```
+```{r}
+table(test_one_hot$V2)
+```
+
+Pasamos a factor
+
+```{r}
+test_one_hot$V2 <- factor(test_one_hot$V2, levels=c(1,2,3),
+labels=c("a_helix","b_sheet","coil"))
+table(test_one_hot$V2)
+```
+
+
+
+```{r}
+predicion1 <- factor(predicion1, levels=c(1,2,3),
+labels=c("a_helix","b_sheet","coil"))
+table(predicion1)
+```
+
+Creo la matriz de confusion, para poder obtener el valor kappa y el erro
+
+```{r}
+confusionMatrix(predicion1,test_one_hot$V2, positive="non_coil")
+```
+Calculo el error
+
+```{r}
+print(error_1 <- 1-0.9046)
+```
+Podemos ver que el error que obtengo es de 0.0954 y estoy obteniendo un valor de kappa de 0.8392, son buenos valores, pero voy aprobar en las siguientes ***k=3,5,7,11***
+
+```{r}
+library(caret)
+Matriz_3<-CrossTable(x=test_one_hot$V2, y=predicion3,
+prop.chisq = FALSE)
+```
+
+```{r}
+predicion3 <- factor(predicion3, levels=c(1,2,3),
+labels=c("a_helix","b_sheet","coil"))
+table(predicion3)
+```
+
+```{r}
+confusionMatrix(predicion3,test_one_hot$V2, positive="non_coil")
+```
+Calculamos el error
+
+```{r}
+print(error_3 <- 1-0.8048)
+```
+
+Sigo con el ***k5***
+
+```{r}
+library(caret)
+Matriz_5<-CrossTable(x=test_one_hot$V2, y=predicion5,
+prop.chisq = FALSE)
+```
+
+```{r}
+predicion5 <- factor(predicion5, levels=c(1,2,3),
+labels=c("a_helix","b_sheet","coil"))
+table(predicion5)
+```
+
+```{r}
+confusionMatrix(predicion5,test_one_hot$V2, positive="non_coil")
+```
+Hago el error para ***k5***
+
+```{r}
+print(error_5 <- 1-0.7745)
+```
+Este valor es peor
+
+
+```{r}
+library(caret)
+Matriz_7<-CrossTable(x=test_one_hot$V2, y=predicion7,
+prop.chisq = FALSE)
+```
+```{r}
+predicion7 <- factor(predicion7, levels=c(1,2,3),
+labels=c("a_helix","b_sheet","coil"))
+table(predicion7)
+```
+
+```{r}
+confusionMatrix(predicion7,test_one_hot$V2, positive="non_coil")
+```
+Hago el error a partir del valor de kappa
+
+```{r}
+print(error_7 <- 1-0.749)
+```
+
+Hago el ultimo el valor de ***k11***
+
+```{r}
+library(caret)
+Matriz_11<-CrossTable(x=test_one_hot$V2, y=predicion11,
+prop.chisq = FALSE)
+```
+```{r}
+predicion11 <- factor(predicion11, levels=c(1,2,3),
+labels=c("a_helix","b_sheet","coil"))
+table(predicion11)
+```
+
+hago la ultima matriz de confusion con el valor de k11
+```{r}
+confusionMatrix(predicion11,test_one_hot$V2, positive="non_coil")
+```
+
+Hago el ultimo error a partir del valor kappa
+
+```{r}
+print(error_11 <- 1-0.7508)
+```
+
+Como podemos observar el mejor ha sido el k1 con un valor ***kappa= 0.8392, y un error= 0.0954***, los modelos van empeorando entre ellos el k3 y k11, pero los peores son el k5 y k7,
+Podemos ver que los datos sacados en las curvas ROC son buenos estan muy proximos a 1, el mejor AUC en las curvas ROOC es el k11 con un valor de AUC = 0.9997547. 
